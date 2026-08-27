@@ -130,17 +130,7 @@ const DEFAULT_GEN_SETTINGS_FALLBACK = {
 const el = id => document.getElementById(id);
 
 function setEditorFeatureSidebarVisible(visible) {
-  const workspace = el('editor-workspace');
-  const sidebar = el('editor-feature-sidebar');
-  const preview = el('pbr-preview-sidebar');
-  const featureHandle = el('feature-resize-handle');
-  const previewHandle = el('preview-resize-handle');
-  if (!workspace || !sidebar || !preview) return;
-  sidebar.hidden = !visible;
-  preview.hidden = !visible;
-  if (featureHandle) featureHandle.hidden = !visible;
-  if (previewHandle) previewHandle.hidden = !visible;
-  workspace.classList.toggle('has-feature-sidebar', visible);
+  // No-op: PBR Generator is now on a separate page
 }
 
 // Hides/restores the Sources sidebar while the PBR Generator panel is
@@ -148,9 +138,7 @@ function setEditorFeatureSidebarVisible(visible) {
 // (persisted separately in localStorage) is untouched - this just toggles
 // a class that hides it, rather than shrinking it to zero.
 function setSourcesSidebarCollapsed(collapsed) {
-  const layout = document.querySelector('.editor-layout');
-  if (!layout) return;
-  layout.classList.toggle('sources-collapsed', collapsed);
+  // No-op: PBR Generator is now on a separate page
 }
 
 function hexToRgb(hex) {
@@ -307,114 +295,7 @@ function setupSidebarResize() {
 
 setupSidebarResize();
 
-function setupFeaturePanelResize() {
-  const workspace = el('editor-workspace');
-  const featureHandle = el('feature-resize-handle');
-  const previewHandle = el('preview-resize-handle');
-  if (!workspace || !featureHandle || !previewHandle) return;
-
-  const savedFeatureWidth = Number(localStorage.getItem('pbr-feature-width'));
-  const savedPreviewWidth = Number(localStorage.getItem('pbr-preview-width'));
-  if (savedFeatureWidth >= 280) workspace.style.setProperty('--feature-width', `${savedFeatureWidth}px`);
-  if (savedPreviewWidth >= 280) workspace.style.setProperty('--preview-width', `${savedPreviewWidth}px`);
-
-  let dragBounds = null;
-  let pendingFeatureWidth = null;
-  let pendingPreviewWidth = null;
-  let frameId = null;
-  let activeHandle = null;
-
-  const widthFromClientX = (clientX, bounds, which) => {
-    const totalWidth = bounds.width;
-    const sourceWidth = workspace.querySelector('.source-sidebar')?.getBoundingClientRect().width || 0;
-    const editWidth = workspace.querySelector('#edit-content')?.getBoundingClientRect().width || 0;
-    
-    if (which === 'feature') {
-      const minFeature = 280;
-      const maxFeature = totalWidth - sourceWidth - minFeature - minFeature - 100;
-      return Math.max(minFeature, Math.min(maxFeature, clientX - bounds.left - sourceWidth));
-    } else {
-      const minPreview = 280;
-      const featureW = pendingFeatureWidth !== null ? pendingFeatureWidth : (savedFeatureWidth || 340);
-      const maxPreview = totalWidth - sourceWidth - featureW - minPreview - 50;
-      return Math.max(minPreview, Math.min(maxPreview, clientX - bounds.left - sourceWidth - featureW));
-    }
-  };
-
-  const applyWidth = (which, width) => {
-    if (which === 'feature') {
-      workspace.style.setProperty('--feature-width', `${width}px`);
-    } else {
-      workspace.style.setProperty('--preview-width', `${width}px`);
-    }
-  };
-
-  const queueWidth = (clientX, which) => {
-    if (which === 'feature') {
-      pendingFeatureWidth = widthFromClientX(clientX, dragBounds, 'feature');
-    } else {
-      pendingPreviewWidth = widthFromClientX(clientX, dragBounds, 'preview');
-    }
-    if (frameId !== null) return;
-    frameId = requestAnimationFrame(() => {
-      frameId = null;
-      if (pendingFeatureWidth !== null) applyWidth('feature', pendingFeatureWidth);
-      if (pendingPreviewWidth !== null) applyWidth('preview', pendingPreviewWidth);
-    });
-  };
-
-  const saveWidth = () => {
-    if (pendingFeatureWidth !== null) applyWidth('feature', pendingFeatureWidth);
-    if (pendingPreviewWidth !== null) applyWidth('preview', pendingPreviewWidth);
-    if (frameId !== null) cancelAnimationFrame(frameId);
-    frameId = null;
-    if (pendingFeatureWidth !== null) localStorage.setItem('pbr-feature-width', String(Math.round(pendingFeatureWidth)));
-    if (pendingPreviewWidth !== null) localStorage.setItem('pbr-preview-width', String(Math.round(pendingPreviewWidth)));
-    pendingFeatureWidth = null;
-    pendingPreviewWidth = null;
-    activeHandle = null;
-  };
-
-  const setupHandle = (handle, which) => {
-    handle.addEventListener('pointerdown', (event) => {
-      dragBounds = workspace.getBoundingClientRect();
-      activeHandle = which;
-      handle.setPointerCapture(event.pointerId);
-      handle.classList.add('dragging');
-      queueWidth(event.clientX, which);
-    });
-    handle.addEventListener('pointermove', (event) => {
-      if (handle.hasPointerCapture(event.pointerId) && activeHandle === which) queueWidth(event.clientX, which);
-    });
-    handle.addEventListener('pointerup', (event) => {
-      saveWidth();
-      handle.releasePointerCapture(event.pointerId);
-      handle.classList.remove('dragging');
-      dragBounds = null;
-    });
-    handle.addEventListener('pointercancel', () => {
-      saveWidth();
-      handle.classList.remove('dragging');
-      dragBounds = null;
-    });
-    handle.addEventListener('keydown', (event) => {
-      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-      event.preventDefault();
-      const bounds = workspace.getBoundingClientRect();
-      const current = which === 'feature'
-        ? (workspace.querySelector('.editor-feature-sidebar')?.getBoundingClientRect().width || 340)
-        : (workspace.querySelector('.pbr-preview-sidebar')?.getBoundingClientRect().width || 340);
-      const width = widthFromClientX(bounds.left + current + (event.key === 'ArrowLeft' ? -20 : 20), bounds, which);
-      applyWidth(which, width);
-      localStorage.setItem(which === 'feature' ? 'pbr-feature-width' : 'pbr-preview-width', String(Math.round(width)));
-    });
-  };
-
-  setupHandle(featureHandle, 'feature');
-  setupHandle(previewHandle, 'preview');
-}
-
-setupFeaturePanelResize();
+// setupFeaturePanelResize() removed - PBR Generator is now on a separate page
 
 window.addEventListener('pywebviewready', async () => {
   try {
