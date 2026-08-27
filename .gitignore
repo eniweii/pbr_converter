@@ -4,7 +4,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
+texconv.exe
+_working/
 # Original rules preserved
 *.log
 ```
