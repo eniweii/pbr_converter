@@ -35,6 +35,7 @@ const state = {
   pbrShape: 'sphere',
   pbrOrbitX: -0.15,
   pbrOrbitY: 0.35,
+  pbrZoom: 1.0,
   genSettingsDraft: null,   // edited live in the panel; only pushed to the
                              // backend when a role is generated or the
                              // panel is closed - never on every keystroke.
@@ -132,9 +133,13 @@ function setEditorFeatureSidebarVisible(visible) {
   const workspace = el('editor-workspace');
   const sidebar = el('editor-feature-sidebar');
   const preview = el('pbr-preview-sidebar');
+  const featureHandle = el('feature-resize-handle');
+  const previewHandle = el('preview-resize-handle');
   if (!workspace || !sidebar || !preview) return;
   sidebar.hidden = !visible;
   preview.hidden = !visible;
+  if (featureHandle) featureHandle.hidden = !visible;
+  if (previewHandle) previewHandle.hidden = !visible;
   workspace.classList.toggle('has-feature-sidebar', visible);
 }
 
@@ -301,6 +306,115 @@ function setupSidebarResize() {
 }
 
 setupSidebarResize();
+
+function setupFeaturePanelResize() {
+  const workspace = el('editor-workspace');
+  const featureHandle = el('feature-resize-handle');
+  const previewHandle = el('preview-resize-handle');
+  if (!workspace || !featureHandle || !previewHandle) return;
+
+  const savedFeatureWidth = Number(localStorage.getItem('pbr-feature-width'));
+  const savedPreviewWidth = Number(localStorage.getItem('pbr-preview-width'));
+  if (savedFeatureWidth >= 280) workspace.style.setProperty('--feature-width', `${savedFeatureWidth}px`);
+  if (savedPreviewWidth >= 280) workspace.style.setProperty('--preview-width', `${savedPreviewWidth}px`);
+
+  let dragBounds = null;
+  let pendingFeatureWidth = null;
+  let pendingPreviewWidth = null;
+  let frameId = null;
+  let activeHandle = null;
+
+  const widthFromClientX = (clientX, bounds, which) => {
+    const totalWidth = bounds.width;
+    const sourceWidth = workspace.querySelector('.source-sidebar')?.getBoundingClientRect().width || 0;
+    const editWidth = workspace.querySelector('#edit-content')?.getBoundingClientRect().width || 0;
+    
+    if (which === 'feature') {
+      const minFeature = 280;
+      const maxFeature = totalWidth - sourceWidth - minFeature - minFeature - 100;
+      return Math.max(minFeature, Math.min(maxFeature, clientX - bounds.left - sourceWidth));
+    } else {
+      const minPreview = 280;
+      const featureW = pendingFeatureWidth !== null ? pendingFeatureWidth : (savedFeatureWidth || 340);
+      const maxPreview = totalWidth - sourceWidth - featureW - minPreview - 50;
+      return Math.max(minPreview, Math.min(maxPreview, clientX - bounds.left - sourceWidth - featureW));
+    }
+  };
+
+  const applyWidth = (which, width) => {
+    if (which === 'feature') {
+      workspace.style.setProperty('--feature-width', `${width}px`);
+    } else {
+      workspace.style.setProperty('--preview-width', `${width}px`);
+    }
+  };
+
+  const queueWidth = (clientX, which) => {
+    if (which === 'feature') {
+      pendingFeatureWidth = widthFromClientX(clientX, dragBounds, 'feature');
+    } else {
+      pendingPreviewWidth = widthFromClientX(clientX, dragBounds, 'preview');
+    }
+    if (frameId !== null) return;
+    frameId = requestAnimationFrame(() => {
+      frameId = null;
+      if (pendingFeatureWidth !== null) applyWidth('feature', pendingFeatureWidth);
+      if (pendingPreviewWidth !== null) applyWidth('preview', pendingPreviewWidth);
+    });
+  };
+
+  const saveWidth = () => {
+    if (pendingFeatureWidth !== null) applyWidth('feature', pendingFeatureWidth);
+    if (pendingPreviewWidth !== null) applyWidth('preview', pendingPreviewWidth);
+    if (frameId !== null) cancelAnimationFrame(frameId);
+    frameId = null;
+    if (pendingFeatureWidth !== null) localStorage.setItem('pbr-feature-width', String(Math.round(pendingFeatureWidth)));
+    if (pendingPreviewWidth !== null) localStorage.setItem('pbr-preview-width', String(Math.round(pendingPreviewWidth)));
+    pendingFeatureWidth = null;
+    pendingPreviewWidth = null;
+    activeHandle = null;
+  };
+
+  const setupHandle = (handle, which) => {
+    handle.addEventListener('pointerdown', (event) => {
+      dragBounds = workspace.getBoundingClientRect();
+      activeHandle = which;
+      handle.setPointerCapture(event.pointerId);
+      handle.classList.add('dragging');
+      queueWidth(event.clientX, which);
+    });
+    handle.addEventListener('pointermove', (event) => {
+      if (handle.hasPointerCapture(event.pointerId) && activeHandle === which) queueWidth(event.clientX, which);
+    });
+    handle.addEventListener('pointerup', (event) => {
+      saveWidth();
+      handle.releasePointerCapture(event.pointerId);
+      handle.classList.remove('dragging');
+      dragBounds = null;
+    });
+    handle.addEventListener('pointercancel', () => {
+      saveWidth();
+      handle.classList.remove('dragging');
+      dragBounds = null;
+    });
+    handle.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      event.preventDefault();
+      const bounds = workspace.getBoundingClientRect();
+      const current = which === 'feature'
+        ? (workspace.querySelector('.editor-feature-sidebar')?.getBoundingClientRect().width || 340)
+        : (workspace.querySelector('.pbr-preview-sidebar')?.getBoundingClientRect().width || 340);
+      const width = widthFromClientX(bounds.left + current + (event.key === 'ArrowLeft' ? -20 : 20), bounds, which);
+      applyWidth(which, width);
+      localStorage.setItem(which === 'feature' ? 'pbr-feature-width' : 'pbr-preview-width', String(Math.round(width)));
+    });
+  };
+
+  setupHandle(featureHandle, 'feature');
+  setupHandle(previewHandle, 'preview');
+}
+
+setupFeaturePanelResize();
 
 window.addEventListener('pywebviewready', async () => {
   try {
@@ -688,13 +802,17 @@ function stripHexPrefix(base) {
 }
 
 // baseColorMap filename "0xE38C5ED8_AB_PAN_CAR360_01_D.dds" -> token "AB_PAN_CAR360_01"
+// Also handles other map types and complex basenames by stripping any known
+// suffix letter(s) just like discovery/name_parser.py does.
 function deriveMapToken(baseColorMapPath) {
   if (!baseColorMapPath || typeof baseColorMapPath !== 'string') return null;
   const filename = baseColorMapPath.split('/').pop();
   const dot = filename.lastIndexOf('.');
   const base = dot > 0 ? filename.slice(0, dot) : filename;
-  const m = base.match(/^(.*)_D$/i);
-  return stripHexPrefix(m ? m[1] : base);
+  // Match the pattern: basename_SUFFIX where SUFFIX is one of the known role letters
+  // This mirrors discovery/name_parser.py's PATTERN logic.
+  const m = base.match(/^(.+)_(REF|AO|[DNMROAS])$/i);
+  return m ? stripHexPrefix(m[1]) : stripHexPrefix(base);
 }
 
 function findScannedTexture(token, suffix) {
@@ -936,7 +1054,7 @@ function drawPbrSphere(canvas, maps) {
   if (!gl) return;
   const vertexSource = `
     attribute vec3 position; attribute vec2 uv; varying vec3 vNormal; varying vec3 vViewDir; varying vec2 texUv;
-    uniform float orbitX; uniform float orbitY;
+    uniform float orbitX; uniform float orbitY; uniform float zoom;
     void main() {
       float cx = cos(orbitX), sx = sin(orbitX), cy = cos(orbitY), sy = sin(orbitY);
       vec3 p = vec3(position.x * cy + position.z * sy, position.y, -position.x * sy + position.z * cy);
@@ -944,7 +1062,7 @@ function drawPbrSphere(canvas, maps) {
       vNormal = normalize(p);
       vViewDir = normalize(vec3(0.0, 0.0, -4.0) - p);
       float depth = p.z + 4.0;
-      gl_Position = vec4(p.x / (depth * .62), p.y / (depth * .62), (depth - 2.0) / 4.0, 1.0);
+      gl_Position = vec4(p.x / (depth * .62) * zoom, p.y / (depth * .62) * zoom, (depth - 2.0) / 4.0, 1.0);
       texUv = uv;
     }
   `;
@@ -1027,6 +1145,7 @@ function drawPbrSphere(canvas, maps) {
   });
   gl.uniform1f(gl.getUniformLocation(program, 'orbitX'), Number(state.pbrOrbitX));
   gl.uniform1f(gl.getUniformLocation(program, 'orbitY'), Number(state.pbrOrbitY));
+  gl.uniform1f(gl.getUniformLocation(program, 'zoom'), Number(state.pbrZoom));
   // The light dial gives an (x, y) position on a disc; the camera in this
   // scene sits at z = -4 looking toward +z, so a camera-facing (visible)
   // surface has a normal whose z-component is negative. For the light to
@@ -1236,20 +1355,37 @@ function renderPbrPreviewPanel() {
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+  let zoomDragging = false;
   sphereCanvas.addEventListener('pointerdown', event => {
-    dragging = true; lastX = event.clientX; lastY = event.clientY;
+    if (event.shiftKey || event.button === 2) {
+      zoomDragging = true; lastY = event.clientY;
+    } else {
+      dragging = true; lastX = event.clientX; lastY = event.clientY;
+    }
     sphereCanvas.setPointerCapture(event.pointerId);
   });
   sphereCanvas.addEventListener('pointermove', event => {
-    if (!dragging) return;
-    state.pbrOrbitY += (event.clientX - lastX) * .01;
-    state.pbrOrbitX += (event.clientY - lastY) * .01;
-    state.pbrOrbitX = Math.max(-1.45, Math.min(1.45, state.pbrOrbitX));
-    lastX = event.clientX; lastY = event.clientY;
-    refreshPbrPreview();
+    if (dragging) {
+      state.pbrOrbitY += (event.clientX - lastX) * .01;
+      state.pbrOrbitX += (event.clientY - lastY) * .01;
+      state.pbrOrbitX = Math.max(-1.45, Math.min(1.45, state.pbrOrbitX));
+      lastX = event.clientX; lastY = event.clientY;
+      refreshPbrPreview();
+    } else if (zoomDragging) {
+      state.pbrZoom += (lastY - event.clientY) * 0.01;
+      state.pbrZoom = Math.max(0.2, Math.min(5.0, state.pbrZoom));
+      lastY = event.clientY;
+      refreshPbrPreview();
+    }
   });
-  sphereCanvas.addEventListener('pointerup', event => { dragging = false; sphereCanvas.releasePointerCapture(event.pointerId); });
-  sphereCanvas.addEventListener('pointercancel', () => { dragging = false; });
+  sphereCanvas.addEventListener('pointerup', event => { dragging = false; zoomDragging = false; sphereCanvas.releasePointerCapture(event.pointerId); });
+  sphereCanvas.addEventListener('pointercancel', () => { dragging = false; zoomDragging = false; });
+  sphereCanvas.addEventListener('wheel', event => {
+    event.preventDefault();
+    state.pbrZoom += event.deltaY * -0.002;
+    state.pbrZoom = Math.max(0.2, Math.min(5.0, state.pbrZoom));
+    refreshPbrPreview();
+  }, { passive: false });
   refreshPbrPreview();
 }
 
