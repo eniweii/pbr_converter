@@ -1,3 +1,10 @@
-.venv/
+```gitignore
+# Python cache files
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Original rules preserved
+*.log
+```
