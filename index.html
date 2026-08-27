@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PBR Texture Converter</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="tabs">
+    <div class="app-brand">Material Editor</div>
+    <div class="tabs-spacer"></div>
+    <button class="tab-btn active" data-tab="edit">Editor</button>
+    <button class="tab-btn" data-tab="deliver">Deliver</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+  </div>
+
+  <section id="edit" class="tab-panel active">
+    <div class="editor-layout">
+      <aside id="source-sidebar" class="source-sidebar">
+        <div class="sidebar-heading">Sources</div>
+        <div class="source-search">
+          <input id="material-search" type="text" placeholder="Filter materials..." aria-label="Filter materials">
+          <span id="selection-count" class="selection-count">0 selected</span>
+        </div>
+        <div class="toolbar">
+          <button id="add-folder-btn">Add Folder…</button>
+          <button id="rescan-btn">Rescan All</button>
+        </div>
+        <div class="toolbar">
+          <button id="open-materials-btn" class="btn-accent">Open materials.json…</button>
+          <span id="materials-stat" class="folder-path">no materials.json loaded</span>
+        </div>
+        <ul id="folder-list" class="folder-list"></ul>
+        <div class="toolbar">
+          <button id="select-all-btn">Select All</button>
+          <button id="select-none-btn">Clear Selection</button>
+          <button id="group-edit-btn">Edit as Group</button>
+          <button id="toggle-datamaps-btn" aria-pressed="true">Hide DataMaps</button>
+        </div>
+        <div id="datamaps-view">
+          <div id="source-table-scroll" class="source-table-scroll">
+            <table id="materials-table">
+              <colgroup>
+                <col class="select-column">
+                <col class="material-column">
+                <col class="datamap-column">
+                <col class="datamap-column">
+                <col class="datamap-column">
+                <col class="datamap-column">
+                <col class="datamap-column">
+                <col class="datamap-column">
+                <col class="datamap-column">
+                <col class="stages-column">
+              </colgroup>
+              <thead>
+                <tr><th></th><th>Material</th><th class="datamap-cell">D</th><th class="datamap-cell">S</th><th class="datamap-cell">N</th><th class="datamap-cell">M</th><th class="datamap-cell">R</th><th class="datamap-cell">O</th><th class="datamap-cell">AO</th><th>Stages</th></tr>
+              </thead>
+              <tbody id="materials-tbody"></tbody>
+            </table>
+          </div>
+          <details id="unmatched-details" class="unmatched-box" hidden>
+            <summary>Unmatched files (<span id="unmatched-count">0</span>)</summary>
+            <ul id="unmatched-list"></ul>
+          </details>
+        </div>
+      </aside>
+      <div id="sidebar-resize-handle" class="sidebar-resize-handle" role="separator" aria-label="Resize Sources sidebar" aria-orientation="vertical" tabindex="0"></div>
+      <div id="editor-workspace" class="editor-workspace">
+        <main id="edit-content"></main>
+        <aside id="editor-feature-sidebar" class="editor-feature-sidebar" hidden aria-label="Editor feature sidebar"></aside>
+        <aside id="pbr-preview-sidebar" class="pbr-preview-sidebar" hidden aria-label="PBR material preview"></aside>
+      </div>
+    </div>
+  </section>
+
+  <section id="deliver" class="tab-panel">
+    <div class="toolbar">
+      <button id="pick-destination-btn">Choose Delivery Destination…</button>
+      <span id="destination-path" class="folder-path">no destination set</span>
+      <button id="deliver-generated-btn" class="btn-accent">Deliver Generated Images</button>
+    </div>
+    <p class="hint">Generated maps live in a working folder next to the app until delivered here — anything left when you close the app is discarded.</p>
+
+    <div class="toolbar">
+      <button id="deliver-save-btn">Save materials.json (+ backup)</button>
+      <span id="deliver-stat" class="folder-path"></span>
+    </div>
+
+    <table id="deliver-table">
+      <thead>
+        <tr><th>Material</th><th>Stages ready</th><th>Detail</th></tr>
+      </thead>
+      <tbody id="deliver-tbody"></tbody>
+    </table>
+  </section>
+
+  <section id="settings" class="tab-panel">
+    <div class="settings-panel">
+      <h1>Settings</h1>
+      <p class="settings-intro">Personalize the Metro palette used across the app.</p>
+      <div class="settings-grid">
+        <label class="settings-field" for="accent-color">
+          <span>Accent color</span>
+          <input id="accent-color" type="color" value="#e8974a">
+        </label>
+        <label class="settings-field settings-toggle" for="light-mode">
+          <span>Light mode</span>
+          <input id="light-mode" type="checkbox">
+        </label>
+        <div class="settings-field settings-scale">
+          <span>UI scale</span>
+          <div id="font-scale" class="scale-options" role="group" aria-label="UI scale">
+            <button type="button" data-scale="100">100%</button>
+            <button type="button" data-scale="125">125%</button>
+            <button type="button" data-scale="150">150%</button>
+          </div>
+        </div>
+      </div>
+      <p class="settings-note">App scale mirrors Windows display scaling. It does not change Windows system settings.</p>
+      <h2 class="settings-section-title">Color palette</h2>
+      <div id="accent-palette" class="accent-palette" aria-label="Windows 8 accent palette"></div>
+    </div>
+  </section>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
