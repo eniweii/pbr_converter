@@ -457,6 +457,7 @@
     settingsRow.className = 'pbr-gen-settings-row';
     
     if (role === 'rough') {
+      // Basic conversion settings
       if (info.source === 'spec') {
         draftSettingField(settingsRow, 'Gamma', 'roughness_gamma', { step: 0.1, min: 0.1, max: 5 });
       } else {
@@ -465,7 +466,86 @@
         draftSettingField(settingsRow, 'Height blur', 'diffuse_height_blur', { step: 1, min: 0, max: 10 });
         draftSettingField(settingsRow, 'Height contrast', 'diffuse_height_contrast', { step: 0.1, min: 0.1, max: 5 });
       }
+      
+      // AwesomeBump RMFilterProp - Noise Filter section
+      const noiseSection = document.createElement('details');
+      noiseSection.className = 'pbr-gen-details';
+      noiseSection.open = true;
+      const noiseSummary = document.createElement('summary');
+      noiseSummary.textContent = 'Noise Filter';
+      noiseSection.appendChild(noiseSummary);
+      draftSettingField(noiseSection, 'Depth', 'roughness_noise_depth', { step: 1, min: 0, max: 20 });
+      draftSettingField(noiseSection, 'Threshold', 'roughness_noise_threshold', { step: 0.05, min: 0, max: 1 });
+      draftSettingField(noiseSection, 'Amplifier', 'roughness_noise_amplifier', { step: 0.1, min: 0, max: 5 });
+      settingsRow.appendChild(noiseSection);
+      
+      // AwesomeBump RMFilterProp - Color Filter section
+      const colorSection = document.createElement('details');
+      colorSection.className = 'pbr-gen-details';
+      colorSection.open = false;
+      const colorSummary = document.createElement('summary');
+      colorSummary.textContent = 'Color Filter';
+      colorSection.appendChild(colorSummary);
+      const colorPickerWrap = document.createElement('label');
+      colorPickerWrap.className = 'pbr-gen-setting';
+      colorPickerWrap.textContent = 'Pick Color';
+      const colorPicker = document.createElement('input');
+      colorPicker.type = 'color';
+      colorPicker.value = pbrPageState.genSettingsDraft['roughness_color_picker'] || '#808080';
+      colorPicker.addEventListener('change', () => {
+        pbrPageState.genSettingsDraft['roughness_color_picker'] = colorPicker.value;
+      });
+      colorPickerWrap.appendChild(colorPicker);
+      colorSection.appendChild(colorPickerWrap);
+      const methodOptions = { 0: 'Off', 1: 'Add', 2: 'Subtract', 3: 'Multiply', 4: 'Overlay' };
+      const methodWrap = document.createElement('label');
+      methodWrap.className = 'pbr-gen-setting';
+      methodWrap.textContent = 'Method';
+      const methodSelect = document.createElement('select');
+      Object.entries(methodOptions).forEach(([val, lbl]) => {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = lbl;
+        methodSelect.appendChild(opt);
+      });
+      methodSelect.value = pbrPageState.genSettingsDraft['roughness_color_method'] || 0;
+      methodSelect.addEventListener('change', () => {
+        pbrPageState.genSettingsDraft['roughness_color_method'] = Number(methodSelect.value);
+      });
+      methodWrap.appendChild(methodSelect);
+      colorSection.appendChild(methodWrap);
+      draftSettingField(colorSection, 'Bias', 'roughness_color_bias', { step: 0.1, min: -2, max: 2 });
+      draftSettingField(colorSection, 'Offset', 'roughness_color_offset', { step: 0.1, min: -2, max: 2 });
+      const invertWrap = document.createElement('label');
+      invertWrap.className = 'pbr-gen-setting pbr-gen-toggle';
+      invertWrap.textContent = 'Invert Mask';
+      const invertCheck = document.createElement('input');
+      invertCheck.type = 'checkbox';
+      invertCheck.checked = pbrPageState.genSettingsDraft['roughness_color_invert'] || false;
+      invertCheck.addEventListener('change', () => {
+        pbrPageState.genSettingsDraft['roughness_color_invert'] = invertCheck.checked;
+      });
+      invertWrap.appendChild(invertCheck);
+      colorSection.appendChild(invertWrap);
+      draftSettingField(colorSection, 'Amplifier', 'roughness_color_amplifier', { step: 0.1, min: 0, max: 5 });
+      settingsRow.appendChild(colorSection);
+      
+      // AwesomeBump SurfaceDetailsProp section
+      const surfaceSection = document.createElement('details');
+      surfaceSection.className = 'pbr-gen-details';
+      surfaceSection.open = false;
+      const surfaceSummary = document.createElement('summary');
+      surfaceSummary.textContent = 'Surface Details';
+      surfaceSection.appendChild(surfaceSummary);
+      draftSettingField(surfaceSection, 'Contrast', 'roughness_contrast', { step: 0.1, min: 0, max: 3 });
+      draftSettingField(surfaceSection, 'DG Radius', 'roughness_double_gauss_radius', { step: 1, min: 0, max: 20 });
+      draftSettingField(surfaceSection, 'DG Weight A', 'roughness_double_gauss_weight_a', { step: 0.1, min: 0, max: 5 });
+      draftSettingField(surfaceSection, 'DG Weight B', 'roughness_double_gauss_weight_b', { step: 0.1, min: 0, max: 5 });
+      draftSettingField(surfaceSection, 'DG Amplifier', 'roughness_double_gauss_amplifier', { step: 0.1, min: 0, max: 5 });
+      settingsRow.appendChild(surfaceSection);
+      
     } else if (role === 'metal') {
+      // Basic conversion settings
       if (info.source === 'spec') {
         draftSettingField(settingsRow, 'Low', 'metal_low', { step: 0.05, min: 0, max: 1 });
         draftSettingField(settingsRow, 'High', 'metal_high', { step: 0.05, min: 0, max: 1 });
@@ -473,6 +553,84 @@
         draftSettingField(settingsRow, 'Low (approx.)', 'diffuse_metal_low', { step: 0.05, min: 0, max: 1 });
         draftSettingField(settingsRow, 'High (approx.)', 'diffuse_metal_high', { step: 0.05, min: 0, max: 1 });
       }
+      
+      // AwesomeBump RMFilterProp - Noise Filter section
+      const noiseSection = document.createElement('details');
+      noiseSection.className = 'pbr-gen-details';
+      noiseSection.open = true;
+      const noiseSummary = document.createElement('summary');
+      noiseSummary.textContent = 'Noise Filter';
+      noiseSection.appendChild(noiseSummary);
+      draftSettingField(noiseSection, 'Depth', 'metallic_noise_depth', { step: 1, min: 0, max: 20 });
+      draftSettingField(noiseSection, 'Threshold', 'metallic_noise_threshold', { step: 0.05, min: 0, max: 1 });
+      draftSettingField(noiseSection, 'Amplifier', 'metallic_noise_amplifier', { step: 0.1, min: 0, max: 5 });
+      settingsRow.appendChild(noiseSection);
+      
+      // AwesomeBump RMFilterProp - Color Filter section
+      const colorSection = document.createElement('details');
+      colorSection.className = 'pbr-gen-details';
+      colorSection.open = false;
+      const colorSummary = document.createElement('summary');
+      colorSummary.textContent = 'Color Filter';
+      colorSection.appendChild(colorSummary);
+      const colorPickerWrap = document.createElement('label');
+      colorPickerWrap.className = 'pbr-gen-setting';
+      colorPickerWrap.textContent = 'Pick Color';
+      const colorPicker = document.createElement('input');
+      colorPicker.type = 'color';
+      colorPicker.value = pbrPageState.genSettingsDraft['metallic_color_picker'] || '#808080';
+      colorPicker.addEventListener('change', () => {
+        pbrPageState.genSettingsDraft['metallic_color_picker'] = colorPicker.value;
+      });
+      colorPickerWrap.appendChild(colorPicker);
+      colorSection.appendChild(colorPickerWrap);
+      const methodOptions = { 0: 'Off', 1: 'Add', 2: 'Subtract', 3: 'Multiply', 4: 'Overlay' };
+      const methodWrap = document.createElement('label');
+      methodWrap.className = 'pbr-gen-setting';
+      methodWrap.textContent = 'Method';
+      const methodSelect = document.createElement('select');
+      Object.entries(methodOptions).forEach(([val, lbl]) => {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = lbl;
+        methodSelect.appendChild(opt);
+      });
+      methodSelect.value = pbrPageState.genSettingsDraft['metallic_color_method'] || 0;
+      methodSelect.addEventListener('change', () => {
+        pbrPageState.genSettingsDraft['metallic_color_method'] = Number(methodSelect.value);
+      });
+      methodWrap.appendChild(methodSelect);
+      colorSection.appendChild(methodWrap);
+      draftSettingField(colorSection, 'Bias', 'metallic_color_bias', { step: 0.1, min: -2, max: 2 });
+      draftSettingField(colorSection, 'Offset', 'metallic_color_offset', { step: 0.1, min: -2, max: 2 });
+      const invertWrap = document.createElement('label');
+      invertWrap.className = 'pbr-gen-setting pbr-gen-toggle';
+      invertWrap.textContent = 'Invert Mask';
+      const invertCheck = document.createElement('input');
+      invertCheck.type = 'checkbox';
+      invertCheck.checked = pbrPageState.genSettingsDraft['metallic_color_invert'] || false;
+      invertCheck.addEventListener('change', () => {
+        pbrPageState.genSettingsDraft['metallic_color_invert'] = invertCheck.checked;
+      });
+      invertWrap.appendChild(invertCheck);
+      colorSection.appendChild(invertWrap);
+      draftSettingField(colorSection, 'Amplifier', 'metallic_color_amplifier', { step: 0.1, min: 0, max: 5 });
+      settingsRow.appendChild(colorSection);
+      
+      // AwesomeBump SurfaceDetailsProp section
+      const surfaceSection = document.createElement('details');
+      surfaceSection.className = 'pbr-gen-details';
+      surfaceSection.open = false;
+      const surfaceSummary = document.createElement('summary');
+      surfaceSummary.textContent = 'Surface Details';
+      surfaceSection.appendChild(surfaceSummary);
+      draftSettingField(surfaceSection, 'Contrast', 'metallic_contrast', { step: 0.1, min: 0, max: 3 });
+      draftSettingField(surfaceSection, 'DG Radius', 'metallic_double_gauss_radius', { step: 1, min: 0, max: 20 });
+      draftSettingField(surfaceSection, 'DG Weight A', 'metallic_double_gauss_weight_a', { step: 0.1, min: 0, max: 5 });
+      draftSettingField(surfaceSection, 'DG Weight B', 'metallic_double_gauss_weight_b', { step: 0.1, min: 0, max: 5 });
+      draftSettingField(surfaceSection, 'DG Amplifier', 'metallic_double_gauss_amplifier', { step: 0.1, min: 0, max: 5 });
+      settingsRow.appendChild(surfaceSection);
+      
     } else if (role === 'normal') {
       draftSettingField(settingsRow, 'Strength', 'diffuse_normal_strength', { step: 0.1, min: 0.1, max: 10 });
       draftSettingField(settingsRow, 'Blur', 'diffuse_normal_blur', { step: 1, min: 0, max: 10 });

@@ -190,6 +190,16 @@ pre#deliver-log { background: #111; padding: 10px; min-height: 60px; }
 .pbr-gen-settings-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .pbr-gen-setting { display: flex; flex-direction: column; gap: 3px; font-size: 9.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .03em; }
 .pbr-gen-setting input { width: 64px; background: var(--tile); border: none; color: var(--text); padding: 5px 6px; font-family: var(--mono); font-size: 11px; }
+.pbr-gen-setting select { width: 72px; background: var(--tile); border: none; color: var(--text); padding: 5px 6px; font-family: var(--mono); font-size: 11px; }
+.pbr-gen-setting input[type="color"] { width: 40px; height: 28px; padding: 0; border: none; background: var(--tile); cursor: pointer; }
+.pbr-gen-setting input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+.pbr-gen-toggle { flex-direction: row !important; align-items: center; gap: 6px !important; }
+.pbr-gen-details { background: var(--tile); padding: 8px 10px; margin: 4px 0; border-radius: 3px; }
+.pbr-gen-details summary { cursor: pointer; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; color: var(--accent); user-select: none; }
+.pbr-gen-details summary::-webkit-details-marker { display: none; }
+.pbr-gen-details summary::before { content: '▶'; display: inline-block; margin-right: 4px; font-size: 8px; transition: transform 0.15s; }
+.pbr-gen-details[open] summary::before { transform: rotate(90deg); }
+.pbr-gen-details .pbr-gen-setting { margin-top: 8px; }
 .pbr-preview-title { margin: 22px 0 8px; color: var(--accent); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .pbr-preview-controls { margin-bottom: 8px; }
 .pbr-preview-controls select { width: 100%; background: var(--tile); border: none; color: var(--text); padding: 7px 8px; font-family: var(--sans); font-size: 11px; }

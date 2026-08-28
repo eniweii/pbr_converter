@@ -11,6 +11,7 @@ metalness = smoothstep(low, high, spec_gray)
   in between        -> smooth cubic ramp
 """
 import numpy as np
+from .utils import smoothstep
 
 
 def spec_to_metallic(spec_gray, low=0.5, high=0.85):
@@ -19,7 +20,4 @@ def spec_to_metallic(spec_gray, low=0.5, high=0.85):
     low/high: cutoffs in [0, 1], low < high.
     Returns a float array in [0, 1].
     """
-    if not (0.0 <= low < high <= 1.0):
-        raise ValueError("Require 0 <= low < high <= 1")
-    t = np.clip((spec_gray - low) / (high - low), 0.0, 1.0)
-    return t * t * (3.0 - 2.0 * t)  # smoothstep
+    return smoothstep(spec_gray, low, high)

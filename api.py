@@ -23,6 +23,30 @@ from processing.diffuse_derive import (
     diffuse_to_roughness,
     diffuse_to_metal_approx,
 )
+from processing.normal_filters import (
+    normal_expand,
+    normal_angle_correction,
+    normal_sharpen_blur,
+    normal_mix_levels,
+    normal_invert_components,
+)
+from processing.grunge_filters import (
+    generate_grunge,
+    apply_grunge_overlay,
+    add_noise,
+    enhance_small_details,
+    enhance_medium_details,
+    simulate_edge_wear,
+    warp_normals_with_grunge,
+)
+from processing.rm_filters import (
+    apply_roughness_noise_filter,
+    apply_roughness_color_filter,
+    apply_metallic_noise_filter,
+    apply_metallic_color_filter,
+    apply_contrast_filter,
+    apply_double_gaussians_filter,
+)
 
 # Reverse of discovery.name_parser.ROLE_NAMES, for building the JS-side
 # populate index: role -> the suffix letter(s) used on disk.
@@ -80,6 +104,56 @@ DEFAULT_SETTINGS = {
     'diffuse_roughness_kernel': 5,
     'diffuse_metal_low': 0.5,
     'diffuse_metal_high': 0.85,
+    # Roughness/Metalness filter settings (AwesomeBump RMFilterProp)
+    # Noise filter - adds procedural noise/detail
+    'roughness_noise_depth': 3,
+    'roughness_noise_threshold': 0.5,
+    'roughness_noise_amplifier': 1.0,
+    'metallic_noise_depth': 3,
+    'metallic_noise_threshold': 0.5,
+    'metallic_noise_amplifier': 1.0,
+    # Color filter - color-based masking and adjustment
+    'roughness_color_picker': '#808080',
+    'roughness_color_method': 0,  # 0=off, 1=add, 2=subtract, 3=multiply, 4=overlay
+    'roughness_color_bias': 0.0,
+    'roughness_color_offset': 0.0,
+    'roughness_color_invert': False,
+    'roughness_color_amplifier': 1.0,
+    'metallic_color_picker': '#808080',
+    'metallic_color_method': 0,
+    'metallic_color_bias': 0.0,
+    'metallic_color_offset': 0.0,
+    'metallic_color_invert': False,
+    'metallic_color_amplifier': 1.0,
+    # Surface details (AwesomeBump SurfaceDetailsProp)
+    'roughness_contrast': 1.0,
+    'roughness_double_gauss_radius': 5,
+    'roughness_double_gauss_weight_a': 1.0,
+    'roughness_double_gauss_weight_b': 2.0,
+    'roughness_double_gauss_amplifier': 1.0,
+    'metallic_contrast': 1.0,
+    'metallic_double_gauss_radius': 5,
+    'metallic_double_gauss_weight_a': 1.0,
+    'metallic_double_gauss_weight_b': 2.0,
+    'metallic_double_gauss_amplifier': 1.0,
+    # Normal filter settings (AwesomeBump normal map enhancement)
+    'normal_expand_strength': 1.0,
+    'normal_angle_correction_degrees': 5.0,
+    'normal_sharpen_sigma': 1.0,
+    'normal_sharpen_strength': 0.0,  # negative = blur, positive = sharpen
+    'normal_mix_weights': [1.0, 0.5, 0.25, 0.125],
+    'normal_invert_x': False,
+    'normal_invert_y': False,
+    'normal_invert_z': False,
+    # Grunge/detail enhancement settings
+    'grunge_size': 1024,
+    'grunge_contrast': 1.5,
+    'grunge_brightness': 0.5,
+    'grunge_overlay_strength': 0.0,
+    'noise_amount': 0.0,
+    'small_detail_strength': 0.0,
+    'medium_detail_strength': 0.0,
+    'edge_wear_amount': 0.0,
 }
 
 DEFAULT_USER_PREFERENCES = {
@@ -510,7 +584,7 @@ class Api:
             return 'diffuse-slot'
         return None
 
-    def get_generation_status(self, material_name, stage_index=0):
+    def get_generation_status(self, material_name, stage_index=0, scan_key=None):
         """
         Per-role status for the PBR generator panel: which source each
         generatable role would actually use right now, so the UI can show
@@ -518,10 +592,12 @@ class Api:
         without duplicating the cascade logic in JS.
         
         The scan key is derived from the material's baseColorMap filename,
-        not from the material name itself.
+        not from the material name itself. If scan_key is provided by the
+        frontend (via findFolderScanKey), it will be used directly.
         """
-        # Get the scan key from the baseColorMap, not from material_name directly
-        scan_key = self._get_scan_key_from_material(material_name, stage_index)
+        # Use provided scan_key if available, otherwise derive it
+        if not scan_key:
+            scan_key = self._get_scan_key_from_material(material_name, stage_index)
         if not scan_key:
             # Fallback to material_name if we can't derive a scan key
             scan_key = material_name
@@ -532,10 +608,12 @@ class Api:
             status[role] = {"source": source, "approximate": source in ('diffuse', 'diffuse-slot')}
         return status
 
-    def get_preview_image(self, material_name, role, stage_index=0):
+    def get_preview_image(self, material_name, role, stage_index=0, scan_key=None):
         """Returns a scanned/generated texture as a data URL for the webview previews."""
-        # Get the scan key from the baseColorMap, not from material_name directly
-        scan_key = self._get_scan_key_from_material(material_name, stage_index)
+        # Use provided scan_key if available (from frontend's findFolderScanKey),
+        # otherwise derive it from the material's baseColorMap
+        if not scan_key:
+            scan_key = self._get_scan_key_from_material(material_name, stage_index)
         if not scan_key:
             # Fallback to material_name if we can't derive a scan key
             scan_key = material_name
@@ -590,7 +668,7 @@ class Api:
         self._height_cache = {key: height}  # single slot is enough for one Generate session
         return height
 
-    def generate_map(self, material_name, role, stage_index=0):
+    def generate_map(self, material_name, role, stage_index=0, apply_filters=True, scan_key=None):
         """
         Generates a metal/rough/normal/ao map for material_name, sourcing
         from its scanned spec/normal file when available, and otherwise
@@ -604,13 +682,18 @@ class Api:
         cleanup on app close or a manual "Clear working folder".
         
         The scan key is derived from the material's baseColorMap filename,
-        not from the material name itself.
+        not from the material name itself. If scan_key is provided by the
+        frontend (via findFolderScanKey), it will be used directly.
+        
+        apply_filters: if True, applies normal filters and grunge/detail
+        enhancements from settings after generating the base map.
         """
         if role not in GENERATION_ROLE_SOURCES:
             return {"status": "error", "message": f"No generation rule for role '{role}'."}
 
-        # Get the scan key from the baseColorMap, not from material_name directly
-        scan_key = self._get_scan_key_from_material(material_name, stage_index)
+        # Use provided scan_key if available, otherwise derive it
+        if not scan_key:
+            scan_key = self._get_scan_key_from_material(material_name, stage_index)
         if not scan_key:
             # Fallback to material_name if we can't derive a scan key
             scan_key = material_name
@@ -660,6 +743,61 @@ class Api:
                         )
                     metal = np.where(mask, 1.0, 0.0).astype(metal.dtype)
                     result = (1.0 - metal).astype(result.dtype)
+                
+                # Apply grunge/detail filters to roughness
+                if apply_filters:
+                    # Apply AwesomeBump RMFilterProp noise filter
+                    if settings.get('roughness_noise_depth', 0) > 0:
+                        result = apply_roughness_noise_filter(
+                            result,
+                            depth=settings['roughness_noise_depth'],
+                            threshold=settings.get('roughness_noise_threshold', 0.5),
+                            amplifier=settings.get('roughness_noise_amplifier', 1.0)
+                        )
+                    # Apply AwesomeBump RMFilterProp color filter
+                    if settings.get('roughness_color_method', 0) != 0:
+                        result = apply_roughness_color_filter(
+                            result,
+                            picked_color=settings.get('roughness_color_picker', '#808080'),
+                            method=settings['roughness_color_method'],
+                            bias=settings.get('roughness_color_bias', 0.0),
+                            offset=settings.get('roughness_color_offset', 0.0),
+                            invert=settings.get('roughness_color_invert', False),
+                            amplifier=settings.get('roughness_color_amplifier', 1.0)
+                        )
+                    # Apply AwesomeBump SurfaceDetailsProp contrast filter
+                    if abs(settings.get('roughness_contrast', 1.0) - 1.0) > 0.01:
+                        result = apply_contrast_filter(
+                            result,
+                            contrast=settings['roughness_contrast']
+                        )
+                    # Apply AwesomeBump SurfaceDetailsProp double Gaussians filter
+                    if settings.get('roughness_double_gauss_radius', 0) > 0:
+                        result = apply_double_gaussians_filter(
+                            result,
+                            radius=settings['roughness_double_gauss_radius'],
+                            weight_a=settings.get('roughness_double_gauss_weight_a', 1.0),
+                            weight_b=settings.get('roughness_double_gauss_weight_b', 2.0),
+                            amplifier=settings.get('roughness_double_gauss_amplifier', 1.0),
+                            contrast=settings.get('roughness_contrast', 1.0)
+                        )
+                    # Legacy grunge/detail filters (backward compatibility)
+                    if settings.get('noise_amount', 0.0) > 0:
+                        result = add_noise(result, amount=settings['noise_amount'])
+                    if settings.get('small_detail_strength', 0.0) > 0:
+                        result = enhance_small_details(result, strength=settings['small_detail_strength'])
+                    if settings.get('medium_detail_strength', 0.0) > 0:
+                        result = enhance_medium_details(result, strength=settings['medium_detail_strength'])
+                    # Generate and apply grunge overlay if strength > 0
+                    grunge_strength = settings.get('grunge_overlay_strength', 0.0)
+                    if grunge_strength > 0:
+                        grunge = generate_grunge(
+                            size=result.shape[0],
+                            contrast=settings.get('grunge_contrast', 1.5),
+                            brightness=settings.get('grunge_brightness', 0.5),
+                        )
+                        result = apply_grunge_overlay(result, grunge, mode='multiply', strength=grunge_strength)
+                
                 save_gray(out_path, result)
 
             elif role == 'metal':
@@ -677,6 +815,60 @@ class Api:
                 mask, _reflection_gray = self._load_reflection_mask(material, result.shape[:2])
                 if mask is not None:
                     result = np.where(mask, 1.0, 0.0).astype(result.dtype)
+                
+                # Apply grunge/detail filters to metalness
+                if apply_filters:
+                    # Apply AwesomeBump RMFilterProp noise filter
+                    if settings.get('metallic_noise_depth', 0) > 0:
+                        result = apply_metallic_noise_filter(
+                            result,
+                            depth=settings['metallic_noise_depth'],
+                            threshold=settings.get('metallic_noise_threshold', 0.5),
+                            amplifier=settings.get('metallic_noise_amplifier', 1.0)
+                        )
+                    # Apply AwesomeBump RMFilterProp color filter
+                    if settings.get('metallic_color_method', 0) != 0:
+                        result = apply_metallic_color_filter(
+                            result,
+                            picked_color=settings.get('metallic_color_picker', '#808080'),
+                            method=settings['metallic_color_method'],
+                            bias=settings.get('metallic_color_bias', 0.0),
+                            offset=settings.get('metallic_color_offset', 0.0),
+                            invert=settings.get('metallic_color_invert', False),
+                            amplifier=settings.get('metallic_color_amplifier', 1.0)
+                        )
+                    # Apply AwesomeBump SurfaceDetailsProp contrast filter
+                    if abs(settings.get('metallic_contrast', 1.0) - 1.0) > 0.01:
+                        result = apply_contrast_filter(
+                            result,
+                            contrast=settings['metallic_contrast']
+                        )
+                    # Apply AwesomeBump SurfaceDetailsProp double Gaussians filter
+                    if settings.get('metallic_double_gauss_radius', 0) > 0:
+                        result = apply_double_gaussians_filter(
+                            result,
+                            radius=settings['metallic_double_gauss_radius'],
+                            weight_a=settings.get('metallic_double_gauss_weight_a', 1.0),
+                            weight_b=settings.get('metallic_double_gauss_weight_b', 2.0),
+                            amplifier=settings.get('metallic_double_gauss_amplifier', 1.0),
+                            contrast=settings.get('metallic_contrast', 1.0)
+                        )
+                    # Legacy grunge/detail filters (backward compatibility)
+                    if settings.get('noise_amount', 0.0) > 0:
+                        result = add_noise(result, amount=settings['noise_amount'])
+                    if settings.get('small_detail_strength', 0.0) > 0:
+                        result = enhance_small_details(result, strength=settings['small_detail_strength'])
+                    if settings.get('medium_detail_strength', 0.0) > 0:
+                        result = enhance_medium_details(result, strength=settings['medium_detail_strength'])
+                    grunge_strength = settings.get('grunge_overlay_strength', 0.0)
+                    if grunge_strength > 0:
+                        grunge = generate_grunge(
+                            size=result.shape[0],
+                            contrast=settings.get('grunge_contrast', 1.5),
+                            brightness=settings.get('grunge_brightness', 0.5),
+                        )
+                        result = apply_grunge_overlay(result, grunge, mode='multiply', strength=grunge_strength)
+                
                 save_gray(out_path, result)
 
             elif role == 'normal':
@@ -694,7 +886,38 @@ class Api:
                 mask, _reflection_gray = self._load_reflection_mask(material, normal_rgb.shape[:2])
                 if mask is not None:
                     normal_rgb[mask] = [0.5, 0.5, 1.0]
-
+                
+                # Apply normal filters (AwesomeBump-style enhancement)
+                if apply_filters:
+                    # Expand/contract bump height
+                    expand_strength = settings.get('normal_expand_strength', 1.0)
+                    if abs(expand_strength - 1.0) > 0.01:
+                        normal_rgb = normal_expand(normal_rgb, strength=expand_strength)
+                    
+                    # Angle correction
+                    angle_deg = settings.get('normal_angle_correction_degrees', 5.0)
+                    if angle_deg > 0:
+                        normal_rgb = normal_angle_correction(normal_rgb, angle_degrees=angle_deg)
+                    
+                    # Sharpen/blur
+                    sharpen_sigma = settings.get('normal_sharpen_sigma', 1.0)
+                    sharpen_strength = settings.get('normal_sharpen_strength', 0.0)
+                    if abs(sharpen_strength) > 0.01:
+                        normal_rgb = normal_sharpen_blur(normal_rgb, sigma=sharpen_sigma, strength=sharpen_strength)
+                    
+                    # Component inversion (DirectX/OpenGL conversion)
+                    invert_x = settings.get('normal_invert_x', False)
+                    invert_y = settings.get('normal_invert_y', False)
+                    invert_z = settings.get('normal_invert_z', False)
+                    if invert_x or invert_y or invert_z:
+                        normal_rgb = normal_invert_components(normal_rgb, invert_x, invert_y, invert_z)
+                    
+                    # Edge wear simulation
+                    wear_amount = settings.get('edge_wear_amount', 0.0)
+                    if wear_amount > 0:
+                        wear_mask = simulate_edge_wear(normal_rgb, wear_amount=wear_amount)
+                        # Use wear mask to modify roughness in worn areas (optional enhancement)
+                
                 save_rgb(out_path, normal_rgb)
 
             elif role == 'ao':
@@ -713,6 +936,12 @@ class Api:
                         steps=int(settings['diffuse_ao_steps']),
                         strength=settings['diffuse_ao_strength'],
                     )
+                
+                # Apply detail filters to AO
+                if apply_filters:
+                    if settings.get('small_detail_strength', 0.0) > 0:
+                        result = enhance_small_details(result, strength=settings['small_detail_strength'])
+                
                 save_gray(out_path, result)
 
             else:

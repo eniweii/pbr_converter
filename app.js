@@ -810,7 +810,7 @@ async function openPbrGenerator(materialName, stageIndex) {
   renderPbrGeneratorPanel();
   try {
     const scanKey = findFolderScanKey(materialName) || materialName;
-    state.generationStatus = await window.pywebview.api.get_generation_status(scanKey, stageIndex);
+    state.generationStatus = await window.pywebview.api.get_generation_status(scanKey, stageIndex, scanKey);
   } catch (e) {
     state.generationStatus = {};
   }
@@ -1146,7 +1146,7 @@ async function refreshPbrPreview() {
   const sphereCanvas = el('pbr-sphere-preview');
   if (!imageCanvas || !sphereCanvas) return;
   const roles = ['diffuse', 'normal', 'rough', 'metal', 'ao', 'reflection'];
-  const previews = await Promise.all(roles.map(role => window.pywebview.api.get_preview_image(scanKey, role, state.pbrGenStage)));
+  const previews = await Promise.all(roles.map(role => window.pywebview.api.get_preview_image(scanKey, role, state.pbrGenStage, scanKey)));
   const images = {};
   await Promise.all(previews.map((preview, index) => new Promise(resolve => {
     if (!preview || preview.error) return resolve();
@@ -1355,7 +1355,7 @@ async function generatePbrMap(role) {
   let result;
   try {
     await window.pywebview.api.update_settings(state.genSettingsDraft);
-    result = await window.pywebview.api.generate_map(scanKey, role, stageIndex);
+    result = await window.pywebview.api.generate_map(scanKey, role, stageIndex, true, scanKey);
   } catch (error) {
     toast(`Generation failed: ${error.message}`);
     return;
@@ -1377,7 +1377,7 @@ async function generatePbrMap(role) {
   mat.Stages[stageIndex][fieldKey] = (state.basePathsByField[fieldKey] || state.textureBasePath) + deliveredName;
 
   state.textureIndex = await window.pywebview.api.get_texture_index();
-  state.generationStatus = await window.pywebview.api.get_generation_status(scanKey, stageIndex);
+  state.generationStatus = await window.pywebview.api.get_generation_status(scanKey, stageIndex, scanKey);
 
   toast(result.message);
   renderPbrGeneratorPanel();
