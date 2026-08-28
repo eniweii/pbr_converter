@@ -344,6 +344,15 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
       renderDeliverTable();
       refreshWorkingFolderStats().then(renderDeliverSettings);
     }
+    if (btn.dataset.tab === "pbr-converter") {
+      // Initialize PBR Generator page with the currently focused material
+      if (typeof window.renderPbrGeneratorWithMaterial === 'function') {
+        const matName = state.focused;
+        const matData = state.materialsData && matName ? state.materialsData[matName] : null;
+        const hasStages = matData && Array.isArray(matData.Stages) && matData.Stages.length > 0;
+        window.renderPbrGeneratorWithMaterial(matName, hasStages ? 0 : null, state.materialsData);
+      }
+    }
   });
 });
 

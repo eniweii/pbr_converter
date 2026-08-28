@@ -423,7 +423,7 @@
     return wrap;
   }
   
-  // Render a role card
+  // Render a role card - needs material and stage data from the main app state
   function renderPbrGenRoleCard(container, mat, stage, role) {
     const card = document.createElement('div');
     card.className = 'pbr-gen-card';
@@ -531,6 +531,41 @@
     }
   }
   
+  // Expose render functions globally so they can be called with updated material/stage data
+  window.renderPbrGeneratorWithMaterial = async function(materialName, stageIndex, materialsData) {
+    if (!materialName || stageIndex === null || stageIndex === undefined) {
+      pbrPageState.material = null;
+      pbrPageState.stage = null;
+    } else {
+      pbrPageState.material = materialName;
+      pbrPageState.stage = stageIndex;
+      pbrPageState.genSettingsDraft = Object.assign({}, DEFAULT_GEN_SETTINGS_FALLBACK);
+      
+      try {
+        if (window.pywebview?.api) {
+          // Fetch initial settings
+          const settings = await window.pywebview.api.get_settings();
+          if (settings && !settings.error) {
+            pbrPageState.genSettingsDraft = Object.assign({}, settings);
+          }
+          
+          // Fetch generation status
+          pbrPageState.generationStatus = await window.pywebview.api.get_generation_status(materialName, stageIndex);
+        }
+      } catch (e) {
+        console.error('Failed to fetch initial data:', e);
+      }
+    }
+    
+    renderGeneratorPanel();
+    renderPreviewPanel();
+    
+    // Update page title
+    if (materialName) {
+      document.getElementById('pbr-preview-title').textContent = materialName + ' - Preview';
+    }
+  };
+  
   // Render the generator panel
   function renderGeneratorPanel() {
     const content = el('pbr-generator-content');
@@ -587,15 +622,20 @@
   }
   
   // Initialize the page
-  async function initPage() {
-    // Get URL parameters for material and stage
-    const params = new URLSearchParams(window.location.search);
-    const material = params.get('material');
-    const stage = params.get('stage');
+  async function initPage(materialFromUrl, stageFromUrl) {
+    // Get URL parameters for material and stage if not provided as arguments
+    let material = materialFromUrl;
+    let stage = stageFromUrl;
+    
+    if (material === undefined || material === null) {
+      const params = new URLSearchParams(window.location.search);
+      material = params.get('material');
+      stage = stageFromUrl !== undefined ? stageFromUrl : (params.get('stage') ? parseInt(params.get('stage'), 10) : 0);
+    }
     
     if (material) {
       pbrPageState.material = material;
-      pbrPageState.stage = stage ? parseInt(stage, 10) : 0;
+      pbrPageState.stage = stage !== null ? stage : 0;
       pbrPageState.genSettingsDraft = Object.assign({}, DEFAULT_GEN_SETTINGS_FALLBACK);
       
       try {
@@ -624,9 +664,12 @@
     }
   }
   
+  // Expose initPage globally so app.js can call it when switching tabs
+  window.initPbrGeneratorPage = initPage;
+  
   // Wait for DOM ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initPage);
+    document.addEventListener('DOMContentLoaded', () => initPage());
   } else {
     initPage();
   }
