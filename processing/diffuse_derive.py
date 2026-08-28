@@ -26,6 +26,7 @@ such wherever it's surfaced in the UI.
 """
 import cv2
 import numpy as np
+from .utils import blur_kernel_size, apply_gaussian_blur, compute_sobel_gradients, smoothstep, clamp_0_1
 
 
 def diffuse_to_height(diffuse_rgb, weights=(0.299, 0.587, 0.114), blur_radius=1, contrast=1.0):
@@ -52,11 +53,10 @@ def diffuse_to_height(diffuse_rgb, weights=(0.299, 0.587, 0.114), blur_radius=1,
     ).astype(np.float32)
 
     if blur_radius > 0:
-        ksize = max(1, blur_radius) * 2 + 1
-        height = cv2.GaussianBlur(height, (ksize, ksize), 0)
+        height = apply_gaussian_blur(height, blur_radius)
 
     if contrast != 1.0:
-        height = np.clip(0.5 + (height - 0.5) * contrast, 0.0, 1.0)
+        height = clamp_0_1(0.5 + (height - 0.5) * contrast)
 
     return height.astype(np.float32)
 
@@ -78,11 +78,9 @@ def height_to_normal(height, strength=2.0, blur_radius=0):
     """
     h = height
     if blur_radius > 0:
-        ksize = max(1, blur_radius) * 2 + 1
-        h = cv2.GaussianBlur(h, (ksize, ksize), 0)
+        h = apply_gaussian_blur(h, blur_radius)
 
-    dx = cv2.Sobel(h, cv2.CV_32F, 1, 0, ksize=3)
-    dy = cv2.Sobel(h, cv2.CV_32F, 0, 1, ksize=3)
+    dx, dy = compute_sobel_gradients(h)
 
     nx = -dx * strength
     ny = -dy * strength
@@ -188,14 +186,10 @@ def diffuse_to_metal_approx(diffuse_rgb, low=0.5, high=0.85):
         metalness.spec_to_metallic for UI/parameter consistency.
     Returns a float array in [0, 1].
     """
-    if not (0.0 <= low < high <= 1.0):
-        raise ValueError("Require 0 <= low < high <= 1")
-
     rgb_u8 = np.clip(diffuse_rgb * 255.0, 0, 255).astype(np.uint8)
     hsv = cv2.cvtColor(rgb_u8, cv2.COLOR_RGB2HSV)
     saturation = hsv[:, :, 1].astype(np.float32) / 255.0
     value = hsv[:, :, 2].astype(np.float32) / 255.0
 
     metal_score = value * (1.0 - saturation)
-    t = np.clip((metal_score - low) / (high - low), 0.0, 1.0)
-    return t * t * (3.0 - 2.0 * t)  # smoothstep
+    return smoothstep(metal_score, low, high)

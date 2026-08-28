@@ -17,6 +17,7 @@ Steps:
 """
 import cv2
 import numpy as np
+from .utils import blur_kernel_size, compute_sobel_gradients, clamp_0_1
 
 
 def normal_to_ao(normal_rgb, blur_radius=3, strength=1.5):
@@ -33,12 +34,12 @@ def normal_to_ao(normal_rgb, blur_radius=3, strength=1.5):
     nx = normal_rgb[:, :, 0] * 2.0 - 1.0
     ny = normal_rgb[:, :, 1] * 2.0 - 1.0
 
-    dnx_dx = cv2.Sobel(nx, cv2.CV_32F, 1, 0, ksize=3)
-    dny_dy = cv2.Sobel(ny, cv2.CV_32F, 0, 1, ksize=3)
+    dnx_dx, _ = compute_sobel_gradients(nx)
+    _, dny_dy = compute_sobel_gradients(ny)
     curvature = dnx_dx + dny_dy
 
-    ksize = max(1, blur_radius) * 2 + 1  # must be odd
+    ksize = blur_kernel_size(blur_radius)  # must be odd
     curvature = cv2.GaussianBlur(curvature, (ksize, ksize), 0)
 
-    occlusion = np.clip(-curvature * strength, 0.0, 1.0)
+    occlusion = clamp_0_1(-curvature * strength)
     return 1.0 - occlusion

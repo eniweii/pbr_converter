@@ -3,7 +3,9 @@ Parses source texture filenames of the form:
     0x########_basename_SUFFIX.ext
 where SUFFIX is one of D, N, M, R, O, A, AO, S, REF.
 Ambient occlusion may be written as either "_A" or "_AO" - both map to
-the same "ao" role. "_S" is the raw specular source map.
+the same "ao" role. "_S" is the raw specular source map. "_REF" is the
+flat-reflective-surface mask (windows, mirrors) used to override
+normal/roughness/metal generation on glass.
 
 The basename is extracted as everything between the hash and the final _SUFFIX.
 Examples:
@@ -33,8 +35,11 @@ ROLE_NAMES = {
 
 # All roles a fully PBR-ready material set could have. Listed explicitly
 # (not derived from ROLE_NAMES.values()) since 'A'/'AO' both map to 'ao'
-# and would otherwise duplicate it here.
-ALL_ROLES = ['diffuse', 'normal', 'metal', 'rough', 'opacity', 'ao', 'spec', 'reflection']
+# and would otherwise duplicate it here. 'reflection' is deliberately
+# excluded - it's an optional mask only some materials (windows, mirrors)
+# have, not part of the standard PBR set, so it shouldn't show up as
+# "missing" on every other material.
+ALL_ROLES = ['diffuse', 'normal', 'metal', 'rough', 'opacity', 'ao', 'spec']
 
 
 def parse_filename(filename: str):
