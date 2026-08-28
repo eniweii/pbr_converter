@@ -428,6 +428,37 @@ class Api:
                         return os.path.join(current_root, current_name)
         return candidates[0] if candidates else path
 
+    def _get_scan_key_from_material(self, material_name, stage_index=0):
+        """
+        Extracts the scan key (material basename) from a material's baseColorMap.
+        The scan key is what the scanner uses to group textures, derived from
+        the baseColorMap filename pattern: 0x########_BASENAME_D.ext
+        """
+        material = self._find_material_data(material_name)
+        if not material:
+            return None
+        stages = material.get('Stages', [])
+        try:
+            stage = stages[int(stage_index)]
+        except (IndexError, TypeError, ValueError):
+            return None
+        if not stage:
+            return None
+        base_color_path = stage.get('baseColorMap')
+        if not base_color_path:
+            return None
+        # Resolve the path to find the actual file
+        resolved = self._resolve_slot_path(base_color_path)
+        if not resolved:
+            return None
+        # Extract the filename and parse it to get the material basename
+        filename = os.path.basename(resolved)
+        from discovery.name_parser import parse_filename
+        parsed = parse_filename(filename)
+        if parsed:
+            return parsed[0]  # Return the material basename (scan key)
+        return None
+
     def _slot_diffuse_path(self, material_name, stage_index):
         material = self._find_material_data(material_name)
         stages = material.get('Stages', []) if material else []
@@ -485,8 +516,16 @@ class Api:
         generatable role would actually use right now, so the UI can show
         e.g. "metal - using: spec" vs "metal - using: diffuse (approx.)"
         without duplicating the cascade logic in JS.
+        
+        The scan key is derived from the material's baseColorMap filename,
+        not from the material name itself.
         """
-        material = (self.last_scan or {}).get('materials', {}).get(material_name, {'roles': {}})
+        # Get the scan key from the baseColorMap, not from material_name directly
+        scan_key = self._get_scan_key_from_material(material_name, stage_index)
+        if not scan_key:
+            # Fallback to material_name if we can't derive a scan key
+            scan_key = material_name
+        material = (self.last_scan or {}).get('materials', {}).get(scan_key, {'roles': {}})
         status = {}
         for role in GENERATION_ROLE_SOURCES:
             source = self._resolve_generation_source(material, role, material_name, stage_index)
@@ -495,7 +534,12 @@ class Api:
 
     def get_preview_image(self, material_name, role, stage_index=0):
         """Returns a scanned/generated texture as a data URL for the webview previews."""
-        material = (self.last_scan or {}).get('materials', {}).get(material_name)
+        # Get the scan key from the baseColorMap, not from material_name directly
+        scan_key = self._get_scan_key_from_material(material_name, stage_index)
+        if not scan_key:
+            # Fallback to material_name if we can't derive a scan key
+            scan_key = material_name
+        material = (self.last_scan or {}).get('materials', {}).get(scan_key)
         path = material.get('roles', {}).get(role) if material else None
         if not path and role == 'diffuse':
             path = self._slot_diffuse_path(material_name, stage_index)
@@ -558,11 +602,20 @@ class Api:
         the source file) - it stays there until Deliver converts+copies it
         to its real destination, and is only removed by the working-folder
         cleanup on app close or a manual "Clear working folder".
+        
+        The scan key is derived from the material's baseColorMap filename,
+        not from the material name itself.
         """
         if role not in GENERATION_ROLE_SOURCES:
             return {"status": "error", "message": f"No generation rule for role '{role}'."}
 
-        material = (self.last_scan or {}).get("materials", {}).get(material_name, {"roles": {}, "missing": []})
+        # Get the scan key from the baseColorMap, not from material_name directly
+        scan_key = self._get_scan_key_from_material(material_name, stage_index)
+        if not scan_key:
+            # Fallback to material_name if we can't derive a scan key
+            scan_key = material_name
+        
+        material = (self.last_scan or {}).get("materials", {}).get(scan_key, {"roles": {}, "missing": []})
 
         source_role = self._resolve_generation_source(material, role, material_name, stage_index)
         if not source_role:

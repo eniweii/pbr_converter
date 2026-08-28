@@ -549,8 +549,29 @@
             pbrPageState.genSettingsDraft = Object.assign({}, settings);
           }
           
-          // Fetch generation status
-          pbrPageState.generationStatus = await window.pywebview.api.get_generation_status(materialName, stageIndex);
+          // Resolve the scan key for this material name (case-insensitive match against scan results)
+          let scanKey = materialName;
+          try {
+            const folderScan = await window.pywebview.api.get_texture_index();
+            // get_texture_index returns {\"<material>_<suffix>\": \"<filename>\"}, extract unique material names
+            const scanMaterials = new Set();
+            for (const key of Object.keys(folderScan)) {
+              const match = key.match(/^(.+)_[A-Z]+$/i);
+              if (match) scanMaterials.add(match[1]);
+            }
+            const lower = materialName.toLowerCase();
+            for (const scanMat of scanMaterials) {
+              if (scanMat.toLowerCase() === lower) {
+                scanKey = scanMat;
+                break;
+              }
+            }
+          } catch (e) {
+            console.warn('Could not resolve scan key, using material name directly:', e);
+          }
+          
+          // Fetch generation status using the resolved scan key
+          pbrPageState.generationStatus = await window.pywebview.api.get_generation_status(scanKey, stageIndex);
         }
       } catch (e) {
         console.error('Failed to fetch initial data:', e);
