@@ -10,6 +10,7 @@
     <div class="app-brand">Material Editor</div>
     <div class="tabs-spacer"></div>
     <button class="tab-btn active" data-tab="edit">Editor</button>
+    <button class="tab-btn" data-tab="pbr-converter">PBR Converter</button>
     <button class="tab-btn" data-tab="deliver">Deliver</button>
     <button class="tab-btn" data-tab="settings">Settings</button>
   </div>
@@ -71,6 +72,47 @@
     </div>
   </section>
 
+  <section id="pbr-converter" class="tab-panel">
+    <div class="pbr-generator-layout">
+      <aside id="pbr-gen-sidebar" class="pbr-gen-sidebar">
+        <div class="sidebar-heading">Generator</div>
+        <div id="pbr-generator-content"></div>
+      </aside>
+      <div id="pbr-gen-resize-handle" class="pbr-gen-resize-handle" role="separator" aria-label="Resize Generator panel" aria-orientation="vertical" tabindex="0"></div>
+      <main id="pbr-preview-main" class="pbr-preview-main">
+        <div class="pbr-preview-header">
+          <h1 id="pbr-preview-title">Material Preview</h1>
+          <div class="pbr-preview-controls">
+            <select id="pbr-preview-role-select"></select>
+            <select id="pbr-shape-select" title="Preview shape"></select>
+          </div>
+        </div>
+        <div class="pbr-light-section">
+          <div class="pbr-light-dial-wrap">
+            <span class="pbr-light-dial-label">Light direction</span>
+            <canvas id="pbr-light-dial" class="pbr-light-dial" title="Drag to orbit the light around the material"></canvas>
+            <span class="pbr-light-dial-hint">Drag — center is straight-on, edge is grazing</span>
+          </div>
+          <label class="pbr-light-power">
+            Power
+            <input type="range" id="pbr-light-power" min="0.2" max="2" step="0.1">
+            <output id="pbr-light-power-value"></output>
+          </label>
+        </div>
+        <div class="pbr-preview-grid">
+          <div class="pbr-preview-map-frame">
+            <span>Map</span>
+            <canvas id="pbr-map-preview" class="pbr-map-preview"></canvas>
+          </div>
+          <div class="pbr-preview-sphere-frame">
+            <span>PBR</span>
+            <canvas id="pbr-sphere-preview" class="pbr-sphere-preview"></canvas>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
+
   <section id="deliver" class="tab-panel">
     <div class="toolbar">
       <button id="pick-destination-btn">Choose Delivery Destination…</button>
@@ -122,5 +164,6 @@
 
   <div id="toast"></div>
   <script src="app.js"></script>
+  <script src="pbr-generator.js"></script>
 </body>
 </html>
